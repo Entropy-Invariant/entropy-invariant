@@ -1,6 +1,6 @@
 # entropy-invariant
 
-A Python package implementing an improved nearest neighbor method for estimating differential entropy for continuous variables. This is a port of the Julia [EntropyInvariant](https://github.com/truongfelix/EntropyInvariant-private) package.
+A Python package implementing an improved nearest neighbor method for estimating differential entropy for continuous variables. This is a port of the Julia [EntropyInvariant](https://github.com/Entropy-Invariant/EntropyInvariant.jl) package.
 
 ## Key Features
 
