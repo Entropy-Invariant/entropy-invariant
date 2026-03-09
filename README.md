@@ -84,6 +84,4 @@ MIT
 ## Citation
 If you use this code or data, please cite:
 
-```
 [An Invariant Measure for Differential Entropy: From Kullback–Leibler Divergence to Scale-Invariant Information Theory](https://www.mdpi.com/1099-4300/28/3/301) DOI: 10.3390/e28030301
-```
