@@ -1,12 +1,13 @@
 # entropy-invariant
 
-A Python package implementing an improved nearest neighbor method for estimating differential entropy for continuous variables. This is a port of the Julia [EntropyInvariant](https://github.com/Entropy-Invariant/EntropyInvariant.jl) package.
+A Python package implementing an improved nearest neighbor method for estimating differential entropy for continuous variables. This is a port of the Julia [EntropyInvariant](https://github.com/Entropy-Invariant/EntropyInvariant.jl) package -- both packages are kept in sync, including the KSG/Frenzel-Pompe estimator described below.
 
 ## Key Features
 
-- **Invariant under change of variables**: Scale and translation invariant entropy estimation
+- **Invariant under change of variables**: Scale and translation invariant entropy, mutual information, and conditional mutual information
 - **Always positive**: Solves Edwin Thompson Jaynes' limiting density of discrete points problem
-- **Multiple methods**: Supports invariant (default), k-NN, and histogram methods
+- **Bias-cancelling MI/CMI by default**: `mutual_information` and `conditional_mutual_information` (and everything built on them) default to `method="inv_ksg"` -- invariant-measure normalization combined with a KSG/Frenzel-Pompe shared-radius estimator, which is both more accurate and more outlier-robust than the naive plug-in differencing (`method="inv"`, also available)
+- **Multiple methods**: `entropy` supports invariant (default), k-NN, and histogram methods
 
 ## Installation
 
@@ -39,14 +40,23 @@ print(f"Entropy: {h}")
 h_scaled = entropy(1e5 * x - 123.456)
 print(f"Entropy (scaled): {h_scaled}")  # Same value!
 
-# Mutual information
+# Mutual information (method="inv_ksg" by default)
 mi = mutual_information(x, y)
 print(f"Mutual Information: {mi}")
 
-# Different methods
+# Different entropy methods
 h_knn = entropy(x, method="knn")
 h_hist = entropy(x, method="histogram", nbins=20)
+
+# The plug-in ("inv") estimator is still available directly for MI/CMI too,
+# e.g. when you need the individual entropy terms rather than just their difference
+mi_plugin = mutual_information(x, y, method="inv")
 ```
+
+See `examples/tutorial_getting_started.ipynb` for a hands-on walkthrough, including why
+`inv_ksg` is the default and where it has a measurable edge over `std`-based
+normalization (a small number of extreme outliers). `examples/` also has deep-dive
+comparison notebooks against `ennemi` and `sklearn`.
 
 ## Available Functions
 
@@ -57,11 +67,17 @@ h_hist = entropy(x, method="histogram", nbins=20)
 - `entropy_hist(X, ...)` - Histogram method
 
 ### Information Theory
+All default to `method="inv_ksg"` (invariant-measure normalization + KSG/Frenzel-Pompe
+shared-radius estimator); `method="inv"` (plug-in, entropy differencing), `"knn"`, and
+`"histogram"` remain available.
 - `conditional_entropy(X, Y, ...)` - H(Y|X)
 - `mutual_information(X, Y, ...)` - I(X;Y)
 - `conditional_mutual_information(X, Y, Z, ...)` - I(X;Y|Z)
 - `normalized_mutual_information(X, Y, ...)` - NMI
 - `interaction_information(X, Y, Z, ...)` - Three-way interaction
+- `information_quality_ratio(X, Y, ...)` - IQR
+- `mutual_information_ksg(X, Y, ...)` - The KSG estimator directly
+- `conditional_mutual_information_ksg(X, Y, Z, ...)` - The Frenzel-Pompe estimator directly
 
 ### Partial Information Decomposition
 - `redundancy(X, Y, Z, ...)` - Shared information
@@ -69,8 +85,8 @@ h_hist = entropy(x, method="histogram", nbins=20)
 - `synergy(X, Y, Z, ...)` - Synergistic information
 
 ### Optimized Matrix Functions
-- `MI(X, ...)` - Pairwise mutual information matrix
-- `CMI(X, Z, ...)` - Pairwise conditional MI matrix
+- `MI(X, method="inv_ksg", ...)` - Pairwise mutual information matrix
+- `CMI(X, Z, method="inv_ksg", ...)` - Pairwise conditional MI matrix
 
 ## Authors
 
