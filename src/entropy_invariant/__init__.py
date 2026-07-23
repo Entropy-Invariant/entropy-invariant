@@ -55,6 +55,10 @@ from entropy_invariant.optimized import (
     MI,
     CMI,
 )
+from entropy_invariant.ksg import (
+    mutual_information_ksg,
+    conditional_mutual_information_ksg,
+)
 
 __version__ = "1.1.0"
 __all__ = [
@@ -78,4 +82,7 @@ __all__ = [
     # Optimized matrix functions
     "MI",
     "CMI",
+    # Invariant-measure + KSG/Frenzel-Pompe (bias-cancelling) estimators
+    "mutual_information_ksg",
+    "conditional_mutual_information_ksg",
 ]

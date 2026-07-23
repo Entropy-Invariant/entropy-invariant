@@ -15,6 +15,10 @@ from entropy_invariant.helpers.data import (
 )
 from entropy_invariant.helpers.utility import log_computation_info
 from entropy_invariant.entropy import entropy
+from entropy_invariant.ksg import (
+    mutual_information_ksg,
+    conditional_mutual_information_ksg,
+)
 
 
 def conditional_mutual_information(
@@ -22,7 +26,7 @@ def conditional_mutual_information(
     Y: NDArray,
     Z: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -37,17 +41,30 @@ def conditional_mutual_information(
         X: First variable
         Y: Second variable
         Z: Conditioning variable
-        method: Entropy estimation method
+        method: Entropy estimation method. `"inv_ksg"` (default) normalizes
+            X, Y, Z by their invariant measure and then applies the
+            Frenzel-Pompe (2007) shared-radius estimator directly, which
+            cancels the leading-order k-NN bias that the plug-in formula does
+            not -- notably on outlier-contaminated or near-degenerate
+            (low-rank manifold) data. `"inv"`, `"knn"`, and `"histogram"`
+            instead build CMI from four independently-estimated entropy terms
+            (plug-in formula); use these if you need the individual entropy
+            terms, not just I(X;Y|Z).
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base
         verbose: Print info
-        degenerate: Handle degenerate cases
+        degenerate: Handle degenerate cases (ignored by method="inv_ksg")
         dim: Data layout
 
     Returns:
         Conditional mutual information I(X;Y|Z)
     """
+    if method == "inv_ksg":
+        return conditional_mutual_information_ksg(
+            X, Y, Z, k=k, base=base, verbose=verbose, dim=dim
+        )
+
     mat_x = ensure_2d(X)
     mat_y = ensure_2d(Y)
     mat_z = ensure_2d(Z)
@@ -101,7 +118,7 @@ def normalized_mutual_information(
     X: NDArray,
     Y: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -115,17 +132,27 @@ def normalized_mutual_information(
     Args:
         X: First variable
         Y: Second variable
-        method: Entropy estimation method
+        method: Entropy estimation method. `"inv_ksg"` (default) computes
+            I(X;Y) with the bias-cancelling KSG estimator (see
+            `mutual_information`) and H(X), H(Y) with the plain invariant
+            entropy. `"inv"`, `"knn"`, and `"histogram"` instead use the
+            plug-in formula for I(X;Y) too.
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base
         verbose: Print info
-        degenerate: Handle degenerate cases
+        degenerate: Handle degenerate cases (ignored by method="inv_ksg")
         dim: Data layout
 
     Returns:
         Normalized mutual information in [0, 1]
     """
+    if method == "inv_ksg":
+        ent_x = entropy(X, method="inv", k=k, base=base, dim=dim)
+        ent_y = entropy(Y, method="inv", k=k, base=base, dim=dim)
+        mi = max(0.0, mutual_information_ksg(X, Y, k=k, base=base, verbose=verbose, dim=dim))
+        return mi / ((ent_x + ent_y) / 2.0)
+
     mat_x = ensure_2d(X)
     mat_y = ensure_2d(Y)
     mat_x = ensure_columns_are_points(mat_x, dim)
@@ -174,7 +201,7 @@ def interaction_information(
     Y: NDArray,
     Z: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -186,22 +213,34 @@ def interaction_information(
     Compute interaction information (three-way interaction).
 
     II(X;Y;Z) = H(X) + H(Y) + H(Z) - H(X,Y) - H(X,Z) - H(Y,Z) + H(X,Y,Z)
+              = I(X;Y) - I(X;Y|Z)
 
     Args:
         X: First variable
         Y: Second variable
         Z: Third variable
-        method: Entropy estimation method
+        method: Entropy estimation method. `"inv_ksg"` (default) computes
+            I(X;Y) - I(X;Y|Z) using the bias-cancelling KSG/Frenzel-Pompe
+            estimators (see `mutual_information`, `conditional_mutual_information`)
+            for both terms, rather than the 7-term plug-in identity above.
+            `"inv"`, `"knn"`, and `"histogram"` use that 7-term plug-in formula.
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base
         verbose: Print info
-        degenerate: Handle degenerate cases
+        degenerate: Handle degenerate cases (ignored by method="inv_ksg")
         dim: Data layout
 
     Returns:
         Interaction information II(X;Y;Z)
     """
+    if method == "inv_ksg":
+        mi_xy = mutual_information_ksg(X, Y, k=k, base=base, verbose=verbose, dim=dim)
+        cmi_xyz = conditional_mutual_information_ksg(
+            X, Y, Z, k=k, base=base, verbose=verbose, dim=dim
+        )
+        return mi_xy - cmi_xyz
+
     mat_x = ensure_2d(X)
     mat_y = ensure_2d(Y)
     mat_z = ensure_2d(Z)
@@ -266,7 +305,7 @@ def information_quality_ratio(
     X: NDArray,
     Y: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -280,17 +319,26 @@ def information_quality_ratio(
     Args:
         X: First variable
         Y: Second variable
-        method: Entropy estimation method
+        method: Entropy estimation method. `"inv_ksg"` (default) computes
+            I(X;Y) with the bias-cancelling KSG estimator (see
+            `mutual_information`) and H(X) with the plain invariant entropy.
+            `"inv"`, `"knn"`, and `"histogram"` instead use the plug-in
+            formula for I(X;Y) too.
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base
         verbose: Print info
-        degenerate: Handle degenerate cases
+        degenerate: Handle degenerate cases (ignored by method="inv_ksg")
         dim: Data layout
 
     Returns:
         Information quality ratio
     """
+    if method == "inv_ksg":
+        ent_x = entropy(X, method="inv", k=k, base=base, dim=dim)
+        mi = mutual_information_ksg(X, Y, k=k, base=base, verbose=verbose, dim=dim)
+        return mi / ent_x
+
     mat_x = ensure_2d(X)
     mat_y = ensure_2d(Y)
     mat_x = ensure_columns_are_points(mat_x, dim)

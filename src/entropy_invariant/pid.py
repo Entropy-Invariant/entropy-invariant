@@ -23,7 +23,7 @@ def redundancy(
     Y: NDArray,
     Z: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -40,7 +40,9 @@ def redundancy(
         X: First source variable
         Y: Second source variable
         Z: Target variable
-        method: Entropy estimation method
+        method: Entropy estimation method (default "inv_ksg" -- see
+            mutual_information / conditional_mutual_information for what this
+            changes; PID quantities are built from those two)
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base
@@ -89,7 +91,7 @@ def unique(
     Y: NDArray,
     Z: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -111,7 +113,9 @@ def unique(
         X: First source variable
         Y: Second source variable
         Z: Target variable
-        method: Entropy estimation method
+        method: Entropy estimation method (default "inv_ksg" -- see
+            mutual_information / conditional_mutual_information for what this
+            changes; PID quantities are built from those two)
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base
@@ -167,7 +171,7 @@ def synergy(
     Y: NDArray,
     Z: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -189,7 +193,9 @@ def synergy(
         X: First source variable
         Y: Second source variable
         Z: Target variable
-        method: Entropy estimation method
+        method: Entropy estimation method (default "inv_ksg" -- see
+            mutual_information / conditional_mutual_information for what this
+            changes; PID quantities are built from those two)
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base

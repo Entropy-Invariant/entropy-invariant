@@ -8,11 +8,13 @@ from scipy.special import digamma
 
 from entropy_invariant._constants import E, LOG_UNIT_BALL_VOLUMES
 from entropy_invariant.helpers.utility import nn1
+from entropy_invariant.ksg import _mi_ksg_from_normalized, _cmi_fp_from_normalized
 
 
 def MI(
     X: NDArray,
     *,
+    method: str = "inv_ksg",
     k: int = 3,
     base: float = E,
     verbose: bool = False,
@@ -22,16 +24,17 @@ def MI(
     """
     Compute the pairwise mutual information (MI) matrix for all pairs of dimensions.
 
-    For each pair of dimensions (i, j), computes: MI(Xi; Xj) = H(Xi) + H(Xj) - H(Xi, Xj)
-
-    Uses k-NN with invariant measure normalization.
-
     Args:
         X: Data matrix where each column is a dimension (if dim=1, rows are points)
+        method: `"inv_ksg"` (default) normalizes each dimension by its invariant
+            measure and applies the KSG shared-radius estimator per pair (see
+            `mutual_information_ksg`), cancelling the leading-order k-NN bias.
+            `"inv"` instead uses the plug-in formula MI(Xi;Xj) = H(Xi)+H(Xj)-H(Xi,Xj)
+            with independently-estimated k-NN entropies.
         k: Number of nearest neighbors (default 3)
         base: Logarithmic base (default e)
         verbose: Print computation info
-        degenerate: Add +1 to distances for degenerate cases
+        degenerate: Add +1 to distances for degenerate cases (ignored by method="inv_ksg")
         dim: Data layout (1=rows are points, 2=cols are points)
 
     Returns:
@@ -50,6 +53,32 @@ def MI(
         print(f"Dimensions: {m}")
         print(f"Base: {base}")
 
+    # Compute invariant measure for all dimensions and normalize once, shared
+    # by both methods below.
+    all_ri = np.zeros(m)
+    for i in range(m):
+        sorted_col = np.sort(a[:, i])
+        nn_dists = nn1(sorted_col)
+        all_ri[i] = np.median(nn_dists) * n
+
+    # Each element is shape (1, n) for KDTree
+    all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
+
+    if method == "inv_ksg":
+        log_base = math.log(base)
+        all_mi_ij = np.zeros((m, m))
+        for i in range(m):
+            for j in range(i, m):
+                mi_nats = _mi_ksg_from_normalized(
+                    all_a_ri[i].T, all_a_ri[j].T, k
+                )
+                all_mi_ij[i, j] = mi_nats / log_base
+                all_mi_ij[j, i] = all_mi_ij[i, j]
+        return all_mi_ij
+
+    if method != "inv":
+        raise ValueError(f"Invalid method: {method}. Choose 'inv' or 'inv_ksg'")
+
     noise = 1 if degenerate else 0
 
     # Constants
@@ -60,17 +89,6 @@ def MI(
     k_1 = k + 1
     dig_k = digamma(k)
     dig_n = digamma(n)
-
-    # Compute invariant measure for all dimensions
-    all_ri = np.zeros(m)
-    for i in range(m):
-        sorted_col = np.sort(a[:, i])
-        nn_dists = nn1(sorted_col)
-        all_ri[i] = np.median(nn_dists) * n
-
-    # Normalize each dimension by its invariant measure
-    # Each element is shape (1, n) for KDTree
-    all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
 
     # Compute marginal entropy for each dimension (1D)
     all_ent_i = np.zeros(m)
@@ -115,6 +133,7 @@ def CMI(
     X: NDArray,
     Z: NDArray,
     *,
+    method: str = "inv_ksg",
     base: float = E,
     k: int = 3,
     verbose: bool = False,
@@ -124,17 +143,18 @@ def CMI(
     """
     Compute the conditional mutual information (CMI) matrix for all dimension pairs.
 
-    For each pair (i, j): CMI(Xi; Xj | Z) = H(Xi, Z) + H(Xj, Z) - H(Xi, Xj, Z) - H(Z)
-
-    Uses k-NN with invariant measure normalization.
-
     Args:
         X: Data matrix where each column is a dimension
         Z: Conditioning variable (1D array or column vector)
+        method: `"inv_ksg"` (default) normalizes each dimension (and Z) by its
+            invariant measure and applies the Frenzel-Pompe shared-radius
+            estimator per pair (see `conditional_mutual_information_ksg`),
+            cancelling the leading-order k-NN bias. `"inv"` instead uses the
+            plug-in formula CMI(Xi;Xj|Z) = H(Xi,Z)+H(Xj,Z)-H(Xi,Xj,Z)-H(Z).
         base: Logarithmic base (default e)
         k: Number of nearest neighbors (default 3)
         verbose: Print computation info
-        degenerate: Add +1 to distances for degenerate cases
+        degenerate: Add +1 to distances for degenerate cases (ignored by method="inv_ksg")
         dim: Data layout (1=rows are points, 2=cols are points)
 
     Returns:
@@ -161,6 +181,37 @@ def CMI(
         print(f"Dimensions: {m}")
         print(f"Base: {base}")
 
+    # Compute invariant measure for all dimensions of X and for Z, and
+    # normalize once, shared by both methods below.
+    all_ri = np.zeros(m)
+    for i in range(m):
+        sorted_col = np.sort(a[:, i])
+        nn_dists = nn1(sorted_col)
+        all_ri[i] = np.median(nn_dists) * n
+
+    sorted_z = np.sort(z)
+    nn_dists_z = nn1(sorted_z)
+    rz = np.median(nn_dists_z) * n
+
+    all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
+    b_rz = z.reshape(1, n) / rz  # shape (1, n)
+
+    if method == "inv_ksg":
+        log_base = math.log(base)
+        z_col = b_rz.T  # shape (n, 1)
+        all_cmi_ijz = np.zeros((m, m))
+        for i in range(m):
+            for j in range(i, m):
+                cmi_nats = _cmi_fp_from_normalized(
+                    all_a_ri[i].T, all_a_ri[j].T, z_col, k
+                )
+                all_cmi_ijz[i, j] = cmi_nats / log_base
+                all_cmi_ijz[j, i] = all_cmi_ijz[i, j]
+        return all_cmi_ijz
+
+    if method != "inv":
+        raise ValueError(f"Invalid method: {method}. Choose 'inv' or 'inv_ksg'")
+
     noise = 1 if degenerate else 0
 
     # Constants for dims 1, 2, 3
@@ -172,24 +223,6 @@ def CMI(
     k_1 = k + 1
     dig_k = digamma(k)
     dig_n = digamma(n)
-
-    # Compute invariant measure for all dimensions of X
-    all_ri = np.zeros(m)
-    for i in range(m):
-        sorted_col = np.sort(a[:, i])
-        nn_dists = nn1(sorted_col)
-        all_ri[i] = np.median(nn_dists) * n
-
-    # Compute invariant measure for Z
-    sorted_z = np.sort(z)
-    nn_dists_z = nn1(sorted_z)
-    rz = np.median(nn_dists_z) * n
-
-    # Normalize each dimension by its invariant measure
-    all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
-
-    # Normalize Z
-    b_rz = z.reshape(1, n) / rz  # shape (1, n)
 
     # Compute entropy for Z (1D)
     data_z = b_rz.T  # shape (n, 1)

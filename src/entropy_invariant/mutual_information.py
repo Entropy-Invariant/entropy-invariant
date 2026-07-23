@@ -15,13 +15,14 @@ from entropy_invariant.helpers.data import (
 )
 from entropy_invariant.helpers.utility import log_computation_info
 from entropy_invariant.entropy import entropy
+from entropy_invariant.ksg import mutual_information_ksg
 
 
 def conditional_entropy(
     X: NDArray,
     Y: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -35,17 +36,26 @@ def conditional_entropy(
     Args:
         X: First variable (conditioning variable)
         Y: Second variable
-        method: Entropy estimation method
+        method: Entropy estimation method. `"inv_ksg"` (default) computes
+            H(Y) - I(X;Y) using the plain invariant entropy for H(Y) and the
+            bias-cancelling KSG estimator (see `mutual_information`) for I(X;Y).
+            `"inv"`, `"knn"`, and `"histogram"` instead use the plug-in formula
+            H(X,Y) - H(X), differencing two independently-estimated entropies.
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base
         verbose: Print info
-        degenerate: Handle degenerate cases
+        degenerate: Handle degenerate cases (ignored by method="inv_ksg")
         dim: Data layout
 
     Returns:
         Conditional entropy H(Y|X)
     """
+    if method == "inv_ksg":
+        ent_y = entropy(Y, method="inv", k=k, base=base, dim=dim)
+        mi_xy = mutual_information_ksg(X, Y, k=k, base=base, verbose=verbose, dim=dim)
+        return ent_y - mi_xy
+
     mat_x = ensure_2d(X)
     mat_y = ensure_2d(Y)
     mat_x = ensure_columns_are_points(mat_x, dim)
@@ -85,7 +95,7 @@ def mutual_information(
     X: NDArray,
     Y: NDArray,
     *,
-    method: str = "inv",
+    method: str = "inv_ksg",
     nbins: int = 10,
     k: int = 3,
     base: float = E,
@@ -99,17 +109,27 @@ def mutual_information(
     Args:
         X: First variable
         Y: Second variable
-        method: Entropy estimation method
+        method: Entropy estimation method. `"inv_ksg"` (default) normalizes X
+            and Y by their invariant measure and then applies the KSG
+            (Kraskov et al. 2004) shared-radius estimator directly, which
+            cancels the leading-order k-NN bias that the plug-in formula does
+            not -- this matters most on outlier-contaminated or near-degenerate
+            data. `"inv"`, `"knn"`, and `"histogram"` instead build MI from
+            independently-estimated H(X), H(Y), H(X,Y) (plug-in formula); use
+            these if you need the individual entropy terms, not just I(X;Y).
         nbins: Bins for histogram method
         k: Neighbors for k-NN methods
         base: Logarithmic base
         verbose: Print info
-        degenerate: Handle degenerate cases
+        degenerate: Handle degenerate cases (ignored by method="inv_ksg")
         dim: Data layout
 
     Returns:
         Mutual information I(X;Y)
     """
+    if method == "inv_ksg":
+        return mutual_information_ksg(X, Y, k=k, base=base, verbose=verbose, dim=dim)
+
     mat_x = ensure_2d(X)
     mat_y = ensure_2d(Y)
     mat_x = ensure_columns_are_points(mat_x, dim)
