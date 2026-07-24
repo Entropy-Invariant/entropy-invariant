@@ -98,16 +98,27 @@ def _check_no_degenerate_counts(*counts_by_name: tuple[str, NDArray]) -> None:
             )
 
 
-def _mi_ksg_from_normalized(
-    x: NDArray[np.float64], y: NDArray[np.float64], k: int
+def _mi_ksg_pair(
+    x: NDArray[np.float64],
+    y: NDArray[np.float64],
+    x_tree: cKDTree,
+    y_tree: cKDTree,
+    k: int,
 ) -> float:
-    """KSG MI in nats, given x, y already invariant-normalized and column-shaped (n, 1)."""
+    """
+    KSG MI in nats, given x, y already invariant-normalized and column-shaped
+    (n, 1), plus their two PRE-BUILT marginal (1D) cKDTrees.
+
+    Splitting out the marginal trees lets a caller computing many pairs over
+    the same set of dimensions (the `MI` matrix function in optimized.py)
+    build each dimension's 1D tree once and reuse it across every pair it
+    appears in, instead of rebuilding it from scratch for every single pair.
+    Only the joint (2D) tree below is genuinely pair-specific.
+    """
     n = x.shape[0]
     xy = np.column_stack([x, y])
 
     joint_tree = cKDTree(xy)
-    x_tree = cKDTree(x)
-    y_tree = cKDTree(y)
 
     # Shared radius: k-th neighbor distance in the joint (normalized) space.
     eps = joint_tree.query(xy, k=[k + 1], p=np.inf)[0].flatten()
@@ -119,21 +130,38 @@ def _mi_ksg_from_normalized(
     return float(digamma(n) + digamma(k) - np.mean(digamma(nx) + digamma(ny)))
 
 
-def _cmi_fp_from_normalized(
+def _mi_ksg_from_normalized(
+    x: NDArray[np.float64], y: NDArray[np.float64], k: int
+) -> float:
+    """KSG MI in nats, given x, y already invariant-normalized and column-shaped (n, 1)."""
+    return _mi_ksg_pair(x, y, cKDTree(x), cKDTree(y), k)
+
+
+def _cmi_fp_pair(
     x: NDArray[np.float64],
     y: NDArray[np.float64],
     z: NDArray[np.float64],
+    xz_tree: cKDTree,
+    yz_tree: cKDTree,
+    z_tree: cKDTree,
     k: int,
 ) -> float:
-    """Frenzel-Pompe CMI in nats, given x, y, z already invariant-normalized, shape (n, 1)."""
+    """
+    Frenzel-Pompe CMI in nats, given x, y, z already invariant-normalized,
+    shape (n, 1), plus PRE-BUILT (X,Z) and (Y,Z) subspace trees and the Z tree.
+
+    Splitting these out lets a caller computing many pairs against the same
+    conditioning variable Z (the `CMI` matrix function in optimized.py) build
+    each dimension's (Xi, Z) tree once and the single Z tree once, and reuse
+    them across every pair -- instead of rebuilding all three (plus Z, which
+    never changes) from scratch for every single pair. Only the full joint
+    (3D) tree below is genuinely pair-specific.
+    """
     xyz = np.column_stack([x, y, z])
     xz = np.column_stack([x, z])
     yz = np.column_stack([y, z])
 
     full_tree = cKDTree(xyz)
-    xz_tree = cKDTree(xz)
-    yz_tree = cKDTree(yz)
-    z_tree = cKDTree(z)
 
     # Shared radius: k-th neighbor distance in the full joint (normalized) space.
     eps = full_tree.query(xyz, k=[k + 1], p=np.inf)[0].flatten()
@@ -144,6 +172,19 @@ def _cmi_fp_from_normalized(
     _check_no_degenerate_counts(("x,z", nxz), ("y,z", nyz), ("z", nz))
 
     return float(digamma(k) - np.mean(digamma(nxz) + digamma(nyz) - digamma(nz)))
+
+
+def _cmi_fp_from_normalized(
+    x: NDArray[np.float64],
+    y: NDArray[np.float64],
+    z: NDArray[np.float64],
+    k: int,
+) -> float:
+    """Frenzel-Pompe CMI in nats, given x, y, z already invariant-normalized, shape (n, 1)."""
+    xz_tree = cKDTree(np.column_stack([x, z]))
+    yz_tree = cKDTree(np.column_stack([y, z]))
+    z_tree = cKDTree(z)
+    return _cmi_fp_pair(x, y, z, xz_tree, yz_tree, z_tree, k)
 
 
 def mutual_information_ksg(

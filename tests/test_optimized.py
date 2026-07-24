@@ -241,3 +241,42 @@ class TestDegenerateKsgRadius:
 
         with pytest.raises(ValueError, match="degenerate"):
             CMI(data, z, method="inv_ksg", k=5)
+
+
+class TestParallelExecution:
+    """
+    n_jobs (method="inv_ksg" only): multiprocessing.Pool over pairs instead
+    of requiring users to hand-roll it (as we did ad hoc for the JASM
+    analysis this generalizes). Regardless of n_jobs, each dimension's
+    marginal/(Xi,Z) tree is built once and reused across all pairs -- so
+    these tests also cover that the tree-reuse refactor didn't change
+    results relative to the original per-pair tree rebuilding.
+    """
+
+    @pytest.fixture
+    def matrix_test_data(self):
+        np.random.seed(99)
+        n = 300
+        data = np.random.rand(n, 6)
+        z = np.random.rand(n)
+        return data, z
+
+    @pytest.mark.parametrize("n_jobs", [2, -1])
+    def test_mi_matrix_n_jobs_matches_sequential(self, matrix_test_data, n_jobs):
+        data, _ = matrix_test_data
+        mi_seq = MI(data, method="inv_ksg", k=4, n_jobs=1)
+        mi_par = MI(data, method="inv_ksg", k=4, n_jobs=n_jobs)
+        assert np.allclose(mi_seq, mi_par, atol=1e-10)
+
+    @pytest.mark.parametrize("n_jobs", [2, -1])
+    def test_cmi_matrix_n_jobs_matches_sequential(self, matrix_test_data, n_jobs):
+        data, z = matrix_test_data
+        cmi_seq = CMI(data, z, method="inv_ksg", k=4, n_jobs=1)
+        cmi_par = CMI(data, z, method="inv_ksg", k=4, n_jobs=n_jobs)
+        assert np.allclose(cmi_seq, cmi_par, atol=1e-10)
+
+    def test_mi_matrix_n_jobs_ignored_for_inv(self, matrix_test_data):
+        data, _ = matrix_test_data
+        mi_seq = MI(data, method="inv", k=4, n_jobs=1)
+        mi_par = MI(data, method="inv", k=4, n_jobs=2)
+        assert np.allclose(mi_seq, mi_par, atol=1e-10)

@@ -85,8 +85,14 @@ shared-radius estimator); `method="inv"` (plug-in, entropy differencing), `"knn"
 - `synergy(X, Y, Z, ...)` - Synergistic information
 
 ### Optimized Matrix Functions
-- `MI(X, method="inv_ksg", ...)` - Pairwise mutual information matrix
-- `CMI(X, Z, method="inv_ksg", ...)` - Pairwise conditional MI matrix
+- `MI(X, method="inv_ksg", n_jobs=1, ...)` - Pairwise mutual information matrix
+- `CMI(X, Z, method="inv_ksg", n_jobs=1, ...)` - Pairwise conditional MI matrix
+
+For `method="inv_ksg"` (the default), each dimension's own k-NN tree is built
+once and reused across all pairs, and `n_jobs` parallelizes the remaining
+O(m²) per-pair work across processes (`n_jobs=-1` for all CPUs, scikit-learn
+convention) -- useful for large matrices (hundreds of dimensions), e.g. mass-
+spec or sensor-array data.
 
 ## Authors
 
