@@ -31,6 +31,9 @@ from scipy.special import digamma
 from entropy_invariant._constants import E
 from entropy_invariant.helpers.computation import (
     compute_invariant_measure,
+    compute_knn_distances,
+    extract_nonzero_log_distances,
+    compute_knn_entropy_nats,
     convert_to_base,
 )
 from entropy_invariant.helpers.data import (
@@ -54,6 +57,47 @@ def _invariant_normalize_1d(x: NDArray[np.float64]) -> NDArray[np.float64]:
     return x / measure
 
 
+def _entropy_nats_from_normalized(col: NDArray[np.float64], k: int, n: int) -> float:
+    """
+    H(Xi) in nats from an already invariant-normalized column, shape (1, n).
+
+    Used for I(Xi; Xi) = H(Xi): pairing a variable with itself is never run
+    through the shared-radius KSG trick above, since any duplicate value in
+    Xi (e.g. repeated zeros in sparse data) then collides with itself in the
+    joint (Xi, Xi) space, making the shared radius degenerate far more
+    easily than a genuine two-variable pair would. The plain k-NN entropy
+    estimate here tolerates duplicates by dropping degenerate (zero-distance)
+    points from the log-distance average -- the same behavior as
+    method="inv" -- instead of hard-failing.
+    """
+    knn_result = compute_knn_distances(col, k)
+    log_dists = extract_nonzero_log_distances(knn_result.kth_distances)
+    return compute_knn_entropy_nats(log_dists, 1, k, n)
+
+
+def _check_no_degenerate_counts(*counts_by_name: tuple[str, NDArray]) -> None:
+    """
+    Raise a clear error if any marginal/subspace neighbor count is 0.
+
+    A count of 0 means the shared KSG radius was degenerate (exactly 0) at
+    that point -- i.e. at least k+1 points are exact duplicates in the joint
+    space, most often because several dimensions are simultaneously sparse
+    (e.g. many rows are all zero). digamma(0) is -inf, so this would
+    otherwise propagate silently into NaN.
+    """
+    for name, counts in counts_by_name:
+        n_degenerate = int(np.sum(counts == 0))
+        if n_degenerate > 0:
+            raise ValueError(
+                f"Shared KSG radius is degenerate for {n_degenerate} point(s) "
+                f"in the '{name}' subspace: at least k+1 points coincide "
+                f"exactly in the joint space (e.g. multiple all-zero/duplicate "
+                f"rows). Cannot compute a finite entropy estimate for these "
+                f"points -- consider deduplicating, adding jitter, or "
+                f"excluding the offending dimension(s)."
+            )
+
+
 def _mi_ksg_from_normalized(
     x: NDArray[np.float64], y: NDArray[np.float64], k: int
 ) -> float:
@@ -70,6 +114,7 @@ def _mi_ksg_from_normalized(
 
     nx = x_tree.query_ball_point(x, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
     ny = y_tree.query_ball_point(y, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
+    _check_no_degenerate_counts(("x", nx), ("y", ny))
 
     return float(digamma(n) + digamma(k) - np.mean(digamma(nx) + digamma(ny)))
 
@@ -96,6 +141,7 @@ def _cmi_fp_from_normalized(
     nxz = xz_tree.query_ball_point(xz, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
     nyz = yz_tree.query_ball_point(yz, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
     nz = z_tree.query_ball_point(z, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
+    _check_no_degenerate_counts(("x,z", nxz), ("y,z", nyz), ("z", nz))
 
     return float(digamma(k) - np.mean(digamma(nxz) + digamma(nyz) - digamma(nz)))
 
@@ -131,12 +177,22 @@ def mutual_information_ksg(
     validate_dimensions_equal_one(shapes)
 
     x = _invariant_normalize_1d(mat_x[0, :]).reshape(-1, 1)
-    y = _invariant_normalize_1d(mat_y[0, :]).reshape(-1, 1)
 
     if verbose:
         print(f"Number of points: {x.shape[0]}")
         print(f"k: {k}, base: {base}")
 
+    if np.array_equal(mat_x, mat_y):
+        # I(X;X) = H(X) exactly. Skip the shared-radius trick: pairing X with
+        # itself makes any duplicate value in X collide with itself in the
+        # joint (X, X) space, so it hits the degenerate-radius case far more
+        # easily than a genuine two-variable pair -- see
+        # _entropy_nats_from_normalized in optimized.py for the matrix-path
+        # equivalent of this special case.
+        mi_nats = _entropy_nats_from_normalized(x.reshape(1, -1), k, x.shape[0])
+        return convert_to_base(mi_nats, base)
+
+    y = _invariant_normalize_1d(mat_y[0, :]).reshape(-1, 1)
     mi_nats = _mi_ksg_from_normalized(x, y, k)
     return convert_to_base(mi_nats, base)
 

@@ -83,3 +83,65 @@ def simple_test_data():
     x = np.random.rand(n)
     y = np.random.rand(n)
     return x, y
+
+
+@pytest.fixture
+def sparse_test_data():
+    """
+    Sparse data resembling real-world sparse signals (e.g. mass-spec bins):
+    x, y are ~80% exact zeros with continuous, essentially-unique non-zero
+    values; z is a fully continuous conditioning variable with no exact
+    zeros/duplicates at all, matching how conditioning variables behave in
+    practice (e.g. a sum over many channels -- see JASM peptide_mix/protein_mix
+    analyses -- is virtually never exactly 0). Keeping z dense avoids a
+    separate, expected degenerate case (see TestDegenerateKsgRadius): if x, y,
+    *and* z were all simultaneously ~80% zero, a large fraction of points
+    would coincide exactly at the joint origin, making the shared KSG radius
+    legitimately 0 there.
+
+    This is the shape of data that triggered a real bug: MI()/CMI()'s matrix
+    fast-path computed the invariant measure inline over the *unfiltered*
+    column (including all the duplicate zeros), giving a zero median
+    nearest-neighbor distance and crashing on data that the scalar
+    mutual_information()/conditional_mutual_information() functions (which
+    correctly filter zeros via compute_invariant_measure()) handled fine.
+    Each column here has a well-defined, non-degenerate invariant measure
+    once zeros are filtered -- unlike the fully-degenerate case in
+    test_optimized.py's TestDegenerateInvariantMeasure, which uses duplicate
+    non-zero values instead.
+    """
+    np.random.seed(7)
+    n = 500
+
+    def make_sparse_column():
+        col = np.zeros(n)
+        nonzero_idx = np.random.choice(n, size=n // 5, replace=False)
+        col[nonzero_idx] = np.random.rand(len(nonzero_idx)) * 10 + 1.0
+        return col
+
+    x = make_sparse_column()
+    y = make_sparse_column()
+    z = np.random.rand(n) * 10 + 1.0  # dense conditioning variable, no zeros
+    return x, y, z
+
+
+@pytest.fixture
+def mildly_sparse_pair():
+    """
+    A pair of columns with light (2%), independently-placed sparsity: enough
+    to exercise compute_invariant_measure()'s zero-filtering, but with
+    n * 0.02 * 0.02 << k+1 expected (x, y) zero/zero coincidences, so the two
+    columns essentially never coincide exactly at (0, 0) (see
+    TestDegenerateKsgRadius for the case where they do, deliberately). Used
+    for the two-variable (no conditioning z) MI KSG consistency check.
+    """
+    np.random.seed(11)
+    n = 500
+
+    def make_column():
+        col = np.zeros(n)
+        nonzero_idx = np.random.choice(n, size=int(n * 0.98), replace=False)
+        col[nonzero_idx] = np.random.rand(len(nonzero_idx)) * 10 + 1.0
+        return col
+
+    return make_column(), make_column()

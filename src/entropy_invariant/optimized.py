@@ -8,7 +8,11 @@ from scipy.special import digamma
 
 from entropy_invariant._constants import E, LOG_UNIT_BALL_VOLUMES
 from entropy_invariant.helpers.computation import compute_invariant_measure
-from entropy_invariant.ksg import _mi_ksg_from_normalized, _cmi_fp_from_normalized
+from entropy_invariant.ksg import (
+    _mi_ksg_from_normalized,
+    _cmi_fp_from_normalized,
+    _entropy_nats_from_normalized,
+)
 
 
 def MI(
@@ -65,9 +69,12 @@ def MI(
         all_mi_ij = np.zeros((m, m))
         for i in range(m):
             for j in range(i, m):
-                mi_nats = _mi_ksg_from_normalized(
-                    all_a_ri[i].T, all_a_ri[j].T, k
-                )
+                if i == j:
+                    mi_nats = _entropy_nats_from_normalized(all_a_ri[i], k, n)
+                else:
+                    mi_nats = _mi_ksg_from_normalized(
+                        all_a_ri[i].T, all_a_ri[j].T, k
+                    )
                 all_mi_ij[i, j] = mi_nats / log_base
                 all_mi_ij[j, i] = all_mi_ij[i, j]
         return all_mi_ij

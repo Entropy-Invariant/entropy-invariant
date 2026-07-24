@@ -23,6 +23,13 @@ def compute_invariant_measure(data: NDArray[np.float64]) -> float:
 
     Returns:
         The invariant measure r_X
+
+    Raises:
+        ValueError: If the median nearest-neighbor distance is zero, i.e. the
+            invariant measure is degenerate. This happens when too many of the
+            non-zero values are exact duplicates (e.g. quantized/clipped
+            sensor readings, or a mostly-constant column). Normalizing by a
+            zero measure would silently produce inf/nan downstream.
     """
     # Filter out zero values (sparse data handling)
     non_zero_data = data[data != 0]
@@ -33,6 +40,18 @@ def compute_invariant_measure(data: NDArray[np.float64]) -> float:
     sorted_data = np.sort(non_zero_data)
     nn_distances = nn1(sorted_data)
     median_distance = np.median(nn_distances)
+
+    if median_distance == 0:
+        n_unique = len(np.unique(non_zero_data))
+        raise ValueError(
+            f"Invariant measure is degenerate (median nearest-neighbor "
+            f"distance is 0): {len(non_zero_data)} non-zero values but only "
+            f"{n_unique} unique among them, so at least half of the sorted "
+            f"non-zero values are exact duplicates. Cannot normalize this "
+            f"dimension -- consider deduplicating, adding jitter, or "
+            f"excluding it from the analysis."
+        )
+
     num_points = len(non_zero_data)
     return float(median_distance * num_points)
 
@@ -106,7 +125,7 @@ def extract_nonzero_log_distances(
 
 
 def compute_knn_entropy_nats(
-    log_distances: NDArray[np.float64], dimension: int, k: int
+    log_distances: NDArray[np.float64], dimension: int, k: int, num_points: int
 ) -> float:
     """
     Compute k-NN entropy estimate in nats using Kraskov formula.
@@ -118,13 +137,22 @@ def compute_knn_entropy_nats(
         rho_k = distance to k-th nearest neighbor
         V_d = volume of d-dimensional unit ball
         psi = digamma function
-        n = number of points
+        n = total number of points used to build the k-NN density estimate
         k = number of neighbors
 
     Args:
-        log_distances: Logarithms of k-th nearest neighbor distances
+        log_distances: Logarithms of k-th nearest neighbor distances (points
+            whose k-th neighbor distance is exactly 0, e.g. duplicates, are
+            dropped from this average -- but that is a separate numerical
+            workaround for the log(0) singularity, and must not shrink n
+            below)
         dimension: Dimensionality of the space (1, 2, or 3)
         k: Number of neighbors used
+        num_points: Total number of points the k-NN search was run over.
+            This is the N in psi(N): it reflects the sample size behind the
+            density estimate and is independent of how many individual
+            points had a degenerate (zero) k-th-neighbor distance and were
+            excluded from `log_distances` above.
 
     Returns:
         Entropy estimate in nats (base e)
@@ -137,11 +165,10 @@ def compute_knn_entropy_nats(
             f"Unit ball volume only available for dimensions 1-3, got {dimension}"
         )
 
-    n = len(log_distances)
     mean_log_dist = np.mean(log_distances)
     log_volume = LOG_UNIT_BALL_VOLUMES[dimension - 1]  # 0-indexed
 
-    entropy = dimension * mean_log_dist + log_volume + digamma(n) - digamma(k)
+    entropy = dimension * mean_log_dist + log_volume + digamma(num_points) - digamma(k)
 
     return float(entropy)
 

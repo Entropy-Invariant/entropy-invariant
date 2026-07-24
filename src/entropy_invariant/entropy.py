@@ -113,7 +113,9 @@ def entropy_knn(
     knn_result = compute_knn_distances(mat, k)
     log_dists = extract_nonzero_log_distances(knn_result.kth_distances, noise)
 
-    entropy_nats = compute_knn_entropy_nats(log_dists, shape.num_dimensions, k)
+    entropy_nats = compute_knn_entropy_nats(
+        log_dists, shape.num_dimensions, k, shape.num_points
+    )
     return convert_to_base(entropy_nats, base)
 
 
@@ -157,7 +159,9 @@ def entropy_inv(
     knn_result = compute_knn_distances(normalized_mat, k)
     log_dists = extract_nonzero_log_distances(knn_result.kth_distances, noise)
 
-    entropy_nats = compute_knn_entropy_nats(log_dists, shape.num_dimensions, k)
+    entropy_nats = compute_knn_entropy_nats(
+        log_dists, shape.num_dimensions, k, shape.num_points
+    )
     return convert_to_base(entropy_nats, base)
 
 
