@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-07-25
+
+### Added
+- `pid_lattice`: N-source Partial Information Decomposition over the Williams & Beer
+  (2010) redundancy lattice, generalizing the two-source `redundancy`/`unique`/`synergy`
+  triple. 4 atoms for 2 sources, 18 for 3, 166 for 4. Three redundancy measures:
+  `"mmi"` (min over coalition mutual informations, estimable from continuous data with any
+  of the package's estimators, and exactly reducing to `redundancy`/`unique` at two
+  sources), `"imin"` (Williams & Beer's original specific-information measure, with
+  guaranteed non-negative atoms) and `"iccs"` (Ince 2017, pointwise common change in
+  surprisal).
+- `iccs_redundancy`: Ince's `I_ccs`. Keeps only the pointwise co-information whose sign
+  every coalition agrees on. Corrects the two-bit COPY case that `"imin"` gets wrong
+  (`R = 0`, `U_X = U_Y = 1`, `Syn = 0` rather than `R = 1`), and unlike `"mmi"` allows both
+  unique atoms to be positive simultaneously instead of exactly one by construction.
+  Defined for any number of sources, unlike BROJA and other optimisation-based measures.
+  Not guaranteed monotone on the lattice, so atoms may be negative.
+- `redundancy_lattice`, `lattice_labels`, `moebius_atoms`: the lattice structure,
+  human-readable atom labels, and the Möbius inversion, exposed separately so a custom
+  redundancy measure can be plugged in.
+- `coalition_mutual_information`: `I(X_A; Z)` for every coalition of sources. Uses the
+  dimension-agnostic shared-radius KSG estimator for `method="inv_ksg"`; rejects
+  coalitions beyond 3 total dimensions for the plug-in methods with an explicit message
+  rather than an opaque failure from deeper in the stack.
+- `isotonic_repair`: projects estimated coalition mutual informations onto the monotone
+  cone `I(X_A;Z) <= I(X_B;Z)` for `A` a subset of `B`. Finite-sample kNN estimates violate
+  this — adding a nearly-redundant source lowers the estimate — which otherwise
+  manufactures negative unique and synergy atoms that are impossible for true information.
+  Deliberately does not clamp to zero, since non-negativity constrains the level of a
+  single estimate rather than the consistency between two, and clamping would bias
+  low-signal regions upward.
+- `specific_information`: Williams & Beer's per-target-outcome specific information.
+- 29 tests covering the above, with values kept identical to the Julia package's suite so
+  the two ports stay in sync.
+
 ## [2.1.0] - 2026-07-24
 
 ### Added

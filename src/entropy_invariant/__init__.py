@@ -55,12 +55,25 @@ from entropy_invariant.optimized import (
     MI,
     CMI,
 )
+from entropy_invariant.pid_lattice import (
+    RedundancyLattice,
+    coalition_mutual_information,
+    iccs_redundancy,
+    imin_redundancy,
+    isotonic_repair,
+    lattice_labels,
+    mmi_redundancy,
+    moebius_atoms,
+    pid_lattice,
+    redundancy_lattice,
+    specific_information,
+)
 from entropy_invariant.ksg import (
     mutual_information_ksg,
     conditional_mutual_information_ksg,
 )
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 __all__ = [
     # Core entropy
     "entropy",
@@ -79,6 +92,18 @@ __all__ = [
     "redundancy",
     "unique",
     "synergy",
+    # N-source PID: Williams & Beer redundancy lattice
+    "pid_lattice",
+    "redundancy_lattice",
+    "RedundancyLattice",
+    "lattice_labels",
+    "moebius_atoms",
+    "coalition_mutual_information",
+    "isotonic_repair",
+    "mmi_redundancy",
+    "imin_redundancy",
+    "iccs_redundancy",
+    "specific_information",
     # Optimized matrix functions
     "MI",
     "CMI",

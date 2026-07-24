@@ -58,6 +58,80 @@ See `examples/tutorial_getting_started.ipynb` for a hands-on walkthrough, includ
 normalization (a small number of extreme outliers). `examples/` also has deep-dive
 comparison notebooks against `ennemi` and `sklearn`.
 
+## N-source Partial Information Decomposition
+
+`redundancy` / `unique` / `synergy` decompose `I({X,Y}; Z)` into four terms and are fixed
+at two sources. `pid_lattice` gives the general N-source decomposition of Williams & Beer
+(2010): `I({X_1,...,X_N}; Z)` splits into a lattice of partial-information atoms — 4 nodes
+for 2 sources, 18 for 3, 166 for 4.
+
+```python
+import numpy as np
+from entropy_invariant import pid_lattice
+
+# continuous data, three sources
+atoms = pid_lattice([x1, x2, x3], z, names=["a", "b", "c"])
+atoms["{a}{b}{c}"]   # redundancy shared by all three individually
+atoms["{ab}{c}"]     # shared by the pair {a,b} and by c alone
+atoms["{abc}"]       # the top synergy atom
+
+# discrete data, from an explicit joint distribution (target in the last axis).
+# Two-input AND, reproducing Williams & Beer's published values in bits:
+pmf = np.zeros((2, 2, 2))
+pmf[0, 0, 0] = pmf[0, 1, 0] = pmf[1, 0, 0] = 0.25
+pmf[1, 1, 1] = 0.25
+a = pid_lattice(pmf, names=["X", "Y"])
+a["{X}{Y}"]   # 0.3113  (redundancy)
+a["{XY}"]     # 0.5     (synergy)
+```
+
+Three redundancy measures are available:
+
+- **`"mmi"`** (default, continuous data) — `min` over coalitions of `I(X_A; Z)`. Works
+  with any of the package's estimators and reduces exactly to `redundancy` / `unique` at
+  two sources.
+- **`"imin"`** (discrete data) — Williams & Beer's original measure, using specific
+  information per target outcome. Guarantees non-negative atoms, which `"mmi"` does not
+  for three or more sources. Over-credits redundancy: on two-bit COPY it reports two
+  *independent* bits as fully redundant.
+- **`"iccs"`** (discrete data) — Ince's (2017) pointwise common change in surprisal. Fixes
+  the COPY case (`R = 0`, `U_X = U_Y = 1`, `Syn = 0`) and, unlike `"mmi"`, lets both unique
+  atoms be positive at once. Atoms may be negative; Ince argues these are meaningful.
+
+```python
+# the same distribution under two measures -- Z = (X, Y), independent bits
+pmf = np.zeros((2, 2, 4))
+pmf[0, 0, 0] = pmf[0, 1, 1] = pmf[1, 0, 2] = pmf[1, 1, 3] = 0.25
+pid_lattice(pmf, measure="imin", names=["X", "Y"])["{X}{Y}"]   # 1.0  -- over-credited
+pid_lattice(pmf, measure="iccs", names=["X", "Y"])["{X}{Y}"]   # 0.0  -- correct
+```
+
+### Two things worth knowing before interpreting the output
+
+**Estimated coalition MIs need repairing first.** True mutual information satisfies
+`I(X_A; Z) <= I(X_B; Z)` whenever `A` is a subset of `B`, but finite-sample kNN estimates
+measurably do not — adding a source that is nearly redundant with the existing ones
+*lowers* the estimate. Both the `min` in `"mmi"` and the Möbius inversion assume that
+ordering, so unrepaired estimates produce negative unique and synergy atoms, which are
+impossible for true information. `pid_lattice` therefore applies `isotonic_repair` by
+default (`repair="isotonic"`, or `"majorant"` / `"none"`). The repair deliberately does
+**not** clamp to zero: an estimate of `-0.02` where the truth is near zero is ordinary
+symmetric noise, and truncating it would bias every low-signal region upward.
+
+**`"mmi"`'s unique atoms are winner-take-all.** At two sources they are
+`max(0, I_X - I_Y)` and `max(0, I_Y - I_X)`, so exactly one is nonzero by construction.
+That is appropriate for asking *how information is divided*, but it cannot express
+"partly one source, partly the other" and will not move gradually as an underlying
+relationship shifts. For *how much each source contributes*, use
+`conditional_mutual_information` or `"iccs"`.
+
+Note also that `sum(atoms) == I({all sources}; Z)` holds identically for any redundancy
+measure — it is a property of the Möbius inversion, not a check that the decomposition is
+right. Correctness is established in the test suite against published atom values on
+discrete toy distributions, the Williams & Beer non-negativity theorem, and exact
+agreement with `redundancy` / `unique` at two sources.
+
+
 ## Available Functions
 
 ### Core Entropy
