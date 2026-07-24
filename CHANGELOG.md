@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-07-24
+
+### Added
+- `MI()` / `CMI()` (`method="inv_ksg"`) now build each dimension's own k-NN
+  tree once and reuse it across all pairs, instead of rebuilding it (and,
+  for `CMI()`, the Z-only tree) redundantly for every pair -- a pure speed
+  improvement, no change in output values.
+- `n_jobs` parameter on `MI()` / `CMI()` (scikit-learn convention: `1`
+  default = sequential, `-1` = all CPUs): distributes the remaining O(m²)
+  per-pair work across `multiprocessing.Pool`. Verified to produce
+  bit-identical results to `n_jobs=1`; ~8x speedup measured on a 100-bin /
+  5050-pair real CMI matrix.
+
 ## [2.0.0] - 2026-07-24
 
 This is the first tagged release of `entropy-invariant`. It bundles a new
@@ -57,4 +70,5 @@ before, even though no function signatures changed.
   instead of silently returning a value that produces a cryptic downstream
   crash.
 
+[2.1.0]: https://github.com/Entropy-Invariant/entropy-invariant/releases/tag/v2.1.0
 [2.0.0]: https://github.com/Entropy-Invariant/entropy-invariant/releases/tag/v2.0.0
