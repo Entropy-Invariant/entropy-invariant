@@ -1,0 +1,60 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
+
+## [2.0.0] - 2026-07-24
+
+This is the first tagged release of `entropy-invariant`. It bundles a new
+estimator, a breaking default-behavior change, and three correctness fixes
+found while hardening the test suite after that change — bumped as a major
+version because the default method now returns different numeric values than
+before, even though no function signatures changed.
+
+### Added
+- `mutual_information_ksg` / `conditional_mutual_information_ksg`: a KSG
+  (Kraskov, Stögbauer & Grassberger 2004) / Frenzel-Pompe (2007) shared-radius
+  estimator, applied after invariant-measure normalization. Cancels the
+  leading-order k-NN bias that the plug-in formula (`H(X)+H(Y)-H(X,Y)`, etc.)
+  does not, most visibly on outlier-contaminated or near-degenerate data.
+- Example notebooks: `examples/tutorial_getting_started.ipynb` and an expanded
+  `examples/plot_cmi_comparison.ipynb`.
+- `method="inv_ksg"` is now the option throughout `mutual_information`,
+  `conditional_mutual_information`, `conditional_entropy`,
+  `normalized_mutual_information`, `interaction_information`,
+  `information_quality_ratio`, `redundancy`, `unique`, `synergy`, and the
+  matrix fast-paths `MI()` / `CMI()`.
+
+### Changed
+- **Breaking**: the default `method` for all MI/CMI-derived functions changed
+  from `"inv"` (plug-in) to `"inv_ksg"`. `method="inv"` is still available
+  and unchanged. Anything relying on the default now gets different (more
+  bias-corrected) numeric output.
+
+### Fixed
+- `MI()` / `CMI()` (the matrix fast-path) computed the invariant measure
+  inline without filtering zero values, unlike the documented
+  `compute_invariant_measure()` helper. On sparse data (mostly zeros, e.g.
+  real spectral/sensor data) this produced a zero median nearest-neighbor
+  distance, causing division by zero and NaN/inf propagation instead of
+  matching the scalar `mutual_information()` / `conditional_mutual_information()`
+  functions.
+- `compute_knn_entropy_nats` used the *post-filtering* sample count (after
+  dropping points with a degenerate zero k-th-neighbor distance) instead of
+  the true total number of points for the `digamma(n)` term. These agree for
+  continuous data with no ties, but diverge sharply on data with duplicates —
+  up to several nats of error on realistic sparse test data.
+- The KSG/Frenzel-Pompe shared-radius estimator silently produced `NaN`
+  (`digamma(0) = -inf`) when ≥k+1 points coincide exactly in the joint space
+  it searches over. Now raises a clear `ValueError`. `MI()`'s diagonal and
+  `mutual_information_ksg(x, x)` (i.e. `I(X;X) = H(X)`) no longer run the
+  shared-radius trick at all, since pairing a variable with itself makes this
+  case trivial to hit for any column with duplicate values.
+- `compute_invariant_measure()` now raises a clear `ValueError` when the
+  invariant measure is degenerate (too many duplicate non-zero values),
+  instead of silently returning a value that produces a cryptic downstream
+  crash.
+
+[2.0.0]: https://github.com/Entropy-Invariant/entropy-invariant/releases/tag/v2.0.0

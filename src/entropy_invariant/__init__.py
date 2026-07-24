@@ -60,7 +60,7 @@ from entropy_invariant.ksg import (
     conditional_mutual_information_ksg,
 )
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 __all__ = [
     # Core entropy
     "entropy",
