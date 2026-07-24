@@ -7,7 +7,7 @@ from scipy.spatial import cKDTree
 from scipy.special import digamma
 
 from entropy_invariant._constants import E, LOG_UNIT_BALL_VOLUMES
-from entropy_invariant.helpers.utility import nn1
+from entropy_invariant.helpers.computation import compute_invariant_measure
 from entropy_invariant.ksg import _mi_ksg_from_normalized, _cmi_fp_from_normalized
 
 
@@ -55,11 +55,7 @@ def MI(
 
     # Compute invariant measure for all dimensions and normalize once, shared
     # by both methods below.
-    all_ri = np.zeros(m)
-    for i in range(m):
-        sorted_col = np.sort(a[:, i])
-        nn_dists = nn1(sorted_col)
-        all_ri[i] = np.median(nn_dists) * n
+    all_ri = np.array([compute_invariant_measure(a[:, i]) for i in range(m)])
 
     # Each element is shape (1, n) for KDTree
     all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
@@ -183,15 +179,8 @@ def CMI(
 
     # Compute invariant measure for all dimensions of X and for Z, and
     # normalize once, shared by both methods below.
-    all_ri = np.zeros(m)
-    for i in range(m):
-        sorted_col = np.sort(a[:, i])
-        nn_dists = nn1(sorted_col)
-        all_ri[i] = np.median(nn_dists) * n
-
-    sorted_z = np.sort(z)
-    nn_dists_z = nn1(sorted_z)
-    rz = np.median(nn_dists_z) * n
+    all_ri = np.array([compute_invariant_measure(a[:, i]) for i in range(m)])
+    rz = compute_invariant_measure(z)
 
     all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
     b_rz = z.reshape(1, n) / rz  # shape (1, n)
