@@ -105,5 +105,6 @@ before, even though no function signatures changed.
   instead of silently returning a value that produces a cryptic downstream
   crash.
 
+[2.2.0]: https://github.com/Entropy-Invariant/entropy-invariant/releases/tag/v2.2.0
 [2.1.0]: https://github.com/Entropy-Invariant/entropy-invariant/releases/tag/v2.1.0
 [2.0.0]: https://github.com/Entropy-Invariant/entropy-invariant/releases/tag/v2.0.0
