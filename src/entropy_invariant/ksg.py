@@ -44,12 +44,32 @@ from entropy_invariant.helpers.data import (
     validate_same_num_points,
 )
 
-# cKDTree's query_ball_point uses a non-strict (<=) radius comparison, but the
-# KSG/Frenzel-Pompe algorithm requires strict (<) neighbor counts. Subtracting a
-# small epsilon from the radius corrects this without materially affecting real
-# (roughly unit-magnitude, post-normalization) distances. Same fix used by `ennemi`
-# (see https://github.com/polsys/ennemi/issues/76).
-_STRICT_RADIUS_EPS = 1e-12
+
+def _strict_radius(eps: NDArray[np.float64]) -> NDArray[np.float64]:
+    """
+    Largest radius strictly below `eps`, correct at any scale.
+
+    cKDTree's query_ball_point uses a non-strict (<=) radius comparison, but the
+    KSG/Frenzel-Pompe algorithm requires strict (<) neighbor counts. Stepping down
+    exactly one ULP gives that, and the step scales with the radius.
+
+    Subtracting a fixed absolute epsilon instead (this used to be 1e-12, the same
+    fix `ennemi` applies, see https://github.com/polsys/ennemi/issues/76) also drops
+    any genuine neighbor lying within that epsilon of the shared radius. Those
+    neighbors belong inside the ball, so the marginal counts come out wrong.
+
+    Invariant normalization keeps *typical* distances near 1, which is what made the
+    absolute epsilon look safe, but it cannot keep individual neighbors away from the
+    radius. Data mixing two very different scales (a cluster orders of magnitude
+    tighter than the median spacing, alongside a normal spread) puts many neighbors
+    inside that window at once. The sign of the resulting error depends on which
+    subspace loses more counts: a small tight spike biases MI upward, a dominant
+    tight core biases it downward by as much as 0.1 nat where the truth is 0.
+
+    `eps == 0` is mapped to a negative radius so the resulting zero counts still
+    trip `_check_no_degenerate_counts` rather than silently counting duplicates.
+    """
+    return np.where(eps > 0, np.nextafter(eps, 0), -1.0)
 
 
 def _invariant_normalize_1d(x: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -123,8 +143,8 @@ def _mi_ksg_pair(
     # Shared radius: k-th neighbor distance in the joint (normalized) space.
     eps = joint_tree.query(xy, k=[k + 1], p=np.inf)[0].flatten()
 
-    nx = x_tree.query_ball_point(x, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
-    ny = y_tree.query_ball_point(y, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
+    nx = x_tree.query_ball_point(x, _strict_radius(eps), p=np.inf, return_length=True)
+    ny = y_tree.query_ball_point(y, _strict_radius(eps), p=np.inf, return_length=True)
     _check_no_degenerate_counts(("x", nx), ("y", ny))
 
     return float(digamma(n) + digamma(k) - np.mean(digamma(nx) + digamma(ny)))
@@ -166,9 +186,9 @@ def _cmi_fp_pair(
     # Shared radius: k-th neighbor distance in the full joint (normalized) space.
     eps = full_tree.query(xyz, k=[k + 1], p=np.inf)[0].flatten()
 
-    nxz = xz_tree.query_ball_point(xz, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
-    nyz = yz_tree.query_ball_point(yz, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
-    nz = z_tree.query_ball_point(z, eps - _STRICT_RADIUS_EPS, p=np.inf, return_length=True)
+    nxz = xz_tree.query_ball_point(xz, _strict_radius(eps), p=np.inf, return_length=True)
+    nyz = yz_tree.query_ball_point(yz, _strict_radius(eps), p=np.inf, return_length=True)
+    nz = z_tree.query_ball_point(z, _strict_radius(eps), p=np.inf, return_length=True)
     _check_no_degenerate_counts(("x,z", nxz), ("y,z", nyz), ("z", nz))
 
     return float(digamma(k) - np.mean(digamma(nxz) + digamma(nyz) - digamma(nz)))

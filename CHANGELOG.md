@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.1] - 2026-08-14
+
+### Fixed
+- KSG/Frenzel-Pompe neighbour counting used a fixed absolute epsilon (`1e-12`) to turn
+  `cKDTree.query_ball_point`'s non-strict (`<=`) radius comparison into the strict (`<`)
+  one the estimators require. Any genuine neighbour lying within that epsilon of the
+  shared radius was dropped along with the k-th one, so the marginal counts came out too
+  low. The correction is now relative -- `np.nextafter`, exactly one ULP -- so it scales
+  with the radius instead of assuming one. Invariant normalization keeps *typical*
+  distances near 1, which is what made the absolute epsilon look safe, but it cannot keep
+  individual neighbours away from the radius: data mixing two very different scales (a
+  cluster orders of magnitude tighter than the median spacing, alongside a normal spread)
+  puts many neighbours inside that window at once. `mutual_information` and
+  `conditional_mutual_information` under `method="inv_ksg"` were affected, and with them
+  every PID atom built on them. Measured on a 70%-tight-core mixture with a true MI of 0,
+  the estimate moved from -0.100 to -0.001 nats. Tie-free data is unchanged.
+
 ## [2.2.0] - 2026-07-25
 
 ### Added

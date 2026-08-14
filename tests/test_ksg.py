@@ -17,6 +17,7 @@ from entropy_invariant import (
     MI,
     CMI,
 )
+from entropy_invariant.ksg import _strict_radius
 
 
 class TestMutualInformationKSG:
@@ -301,3 +302,61 @@ class TestCMIMatrixKSG:
         data = np.column_stack([x, y])
         cmi_mat = CMI(data, z, method="inv")
         assert np.isfinite(cmi_mat).all()
+
+
+class TestStrictRadius:
+    """The shared-radius correction must be relative, not a fixed absolute epsilon."""
+
+    def test_strict_radius_is_one_ulp_below(self):
+        eps = np.array([1e-3, 1.0, 1e3])
+        r = _strict_radius(eps)
+        assert np.all(r < eps)
+        assert np.all(np.nextafter(r, np.inf) == eps)  # exactly one ULP, at every scale
+
+    def test_strict_radius_keeps_zero_degenerate(self):
+        # eps == 0 must stay detectable by _check_no_degenerate_counts, which
+        # looks for a count of 0. A non-negative radius would count the point
+        # itself and hide the degeneracy.
+        assert _strict_radius(np.array([0.0]))[0] < 0
+
+    def test_no_bias_on_scale_mixture(self):
+        # 70% of the mass in a core far tighter than the median nearest-neighbour
+        # spacing, the rest spread over U(0, 10). X is built independently of Y, so
+        # the true MI is 0. A fixed 1e-12 epsilon drops genuine neighbours here and
+        # the estimate lands near -0.10 on every seed.
+        n = 30_000
+        vals = []
+        for seed in range(6):
+            rng = np.random.default_rng(seed)
+            core = 1e-12 * rng.standard_normal(int(n * 0.7))
+            tail = rng.uniform(0, 10, n - core.size)
+            x = rng.permutation(np.concatenate([core, tail]))
+            vals.append(mutual_information_ksg(x, rng.standard_normal(n)))
+        vals = np.array(vals)
+        assert np.abs(vals).max() < 0.02, f"estimates far from 0: {vals}"
+
+    def test_no_upward_bias_on_tight_spike(self):
+        # Mirror image of the above: a *small* tight spike biases the estimate the
+        # other way, positive (~+0.013) on every seed under the old epsilon.
+        n = 40_000
+        vals = []
+        for seed in range(8):
+            rng = np.random.default_rng(seed)
+            spread = rng.uniform(0, 1, int(n * 0.9))
+            spike = 0.5 + 1e-15 * rng.standard_normal(n - spread.size)
+            x = rng.permutation(np.concatenate([spread, spike]))
+            vals.append(mutual_information_ksg(x, rng.standard_normal(n)))
+        vals = np.array(vals)
+        # noise around zero is expected; a one-sided result is not
+        assert vals.min() < 0.0, f"estimates never went negative: {vals}"
+        assert abs(vals.mean()) < 0.005, f"mean {vals.mean():.5f} indicates bias"
+
+    def test_degenerate_joint_radius_still_raises(self):
+        # Healthy spread plus k+1 exact duplicate rows: the invariant measure is
+        # fine, but the joint radius is 0 at the duplicates.
+        rng = np.random.default_rng(0)
+        n = 10_000
+        x = np.concatenate([rng.standard_normal(n), np.full(10, 2.5)])
+        y = np.concatenate([rng.standard_normal(n), np.full(10, -1.5)])
+        with pytest.raises(ValueError, match="degenerate"):
+            mutual_information_ksg(x, y)
