@@ -24,10 +24,6 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
         os: [ubuntu-latest]
         include:
-          # pyproject declares requires-python >= 3.8; 3.8 is past end of life
-          # and is no longer provided on ubuntu-latest, so pin it to 22.04.
-          - python-version: '3.8'
-            os: ubuntu-22.04
           - python-version: '3.12'
             os: windows-latest
           - python-version: '3.12'

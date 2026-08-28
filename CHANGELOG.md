@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.2] - 2026-08-28
+
+### Changed
+- `requires-python` now declares `>=3.9` instead of `>=3.8`, and the classifiers follow
+  (3.8 dropped, 3.13 added). The old bound was never installable: the package annotates
+  with PEP 585 builtin generics (`tuple[str, NDArray]` in `ksg.py`) evaluated at import
+  time, which raises `TypeError: 'type' object is not subscriptable` on 3.8. CI tests 3.9
+  through 3.13. No source change -- this only makes the metadata describe what the
+  package actually supports.
+
 ## [2.2.1] - 2026-08-14
 
 ### Fixed
