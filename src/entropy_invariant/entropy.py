@@ -132,7 +132,8 @@ def entropy_inv(
     Compute entropy using invariant method (default).
 
     This method normalizes by the invariant measure, ensuring scale/translation
-    invariance and always-positive entropy values.
+    invariance. Values are positive for common distribution families and
+    negative only in extreme cases (see the README).
 
     Args:
         X: Data array (1D or 2D)

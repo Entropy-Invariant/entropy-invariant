@@ -5,7 +5,7 @@ A Python package implementing an improved nearest neighbor method for estimating
 ## Key Features
 
 - **Invariant under change of variables**: Scale and translation invariant entropy, mutual information, and conditional mutual information
-- **Always positive**: Solves Edwin Thompson Jaynes' limiting density of discrete points problem
+- **Positive in practice**: Solves Edwin Thompson Jaynes' limiting density of discrete points problem. Unlike raw differential entropy, which is negative whenever the data spread is small in the chosen units, the invariant entropy is positive for common distribution families; it goes negative only in extreme cases (see [Sign of the entropy](#sign-of-the-entropy))
 - **Bias-cancelling MI/CMI by default**: `mutual_information` and `conditional_mutual_information` (and everything built on them) default to `method="inv_ksg"` -- invariant-measure normalization combined with a KSG/Frenzel-Pompe shared-radius estimator, which is both more accurate and more outlier-robust than the naive plug-in differencing (`method="inv"`, also available)
 - **Multiple methods**: `entropy` supports invariant (default), k-NN, and histogram methods
 
@@ -84,6 +84,21 @@ entropy(x_snapped)
 
 A dimension left with fewer than two values that occur once has no scale, and every
 quantity involving it is `NaN`.
+
+### Sign of the entropy
+
+The invariant entropy is positive for common distribution families (uniform, normal,
+exponential, Cauchy and others) but not for every distribution. It goes negative only in
+extreme cases: a minority of the data packed into a region roughly a thousand times narrower
+than the rest, or more. The narrow part pulls the differential entropy down, while the scale,
+set by the median spacing, still follows the majority. For example:
+
+```python
+rng = np.random.default_rng(0)
+n = 100_000
+x = np.where(rng.random(n) < 0.3, rng.random(n) * 1e-6, rng.random(n))  # 30% inside [0, 1e-6]
+entropy(x)  # about -2.1
+```
 
 ## N-source Partial Information Decomposition
 
