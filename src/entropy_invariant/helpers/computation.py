@@ -22,7 +22,9 @@ def compute_invariant_measure(data: NDArray[np.float64]) -> float:
         data: 1D data array
 
     Returns:
-        The invariant measure r_X
+        The invariant measure r_X, or NaN when fewer than two non-zero values
+        remain -- there is no spacing to measure, so there is no scale. Every
+        estimator returns NaN for a quantity that involves such a dimension.
 
     Raises:
         ValueError: If the median nearest-neighbor distance is zero, i.e. the
@@ -35,7 +37,7 @@ def compute_invariant_measure(data: NDArray[np.float64]) -> float:
     non_zero_data = data[data != 0]
 
     if len(non_zero_data) < 2:
-        return 1.0  # Fallback for insufficient data
+        return float("nan")
 
     sorted_data = np.sort(non_zero_data)
     nn_distances = nn1(sorted_data)
