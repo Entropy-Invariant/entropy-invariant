@@ -90,7 +90,7 @@ def _entropy_nats_from_normalized(col: NDArray[np.float64], k: int, n: int) -> f
     points from the log-distance average -- the same behavior as
     method="inv" -- instead of hard-failing.
     """
-    # NaN measure: fewer than two non-zero values, so no scale and no tree to build
+    # NaN measure: fewer than two values occur once, so no scale and no tree to build
     if np.isnan(col).any():
         return float("nan")
     knn_result = compute_knn_distances(col, k)

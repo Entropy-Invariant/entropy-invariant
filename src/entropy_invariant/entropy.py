@@ -154,7 +154,7 @@ def entropy_inv(
 
     # Invariant measure normalization - the key innovation
     normalized_mat = normalize_by_invariant_measure(mat)
-    # A dimension with fewer than two non-zero values has no scale (NaN measure)
+    # A dimension with fewer than two values that occur once has no scale (NaN measure)
     if np.isnan(normalized_mat).any():
         return float("nan")
 

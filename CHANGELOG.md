@@ -7,14 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `compute_invariant_measure` set aside every value equal to `0` before taking the
+  median nearest-neighbour distance, so the scale depended on where the data sat.
+  `0:6` and `1:7` have the same spacing, but `r` was 6 and 7 and the invariant entropy
+  moved by `log(6/7)`; sparse columns shifted by any constant raised a "degenerate"
+  error. What breaks the median is a repeated value, not the value 0, so every
+  duplicated value is now set aside, wherever it sits, and `r` counts the values that
+  occur once. Sparse data whose only duplicate is `0` gets the same scale as before,
+  bit for bit. Duplicates are set aside from the scale only: entropy and mutual
+  information still use every point, so the mass of a repeated value still counts.
+- The degenerate-measure error now fires when duplicates are spread over many values
+  (discrete or coarsely rounded data): after setting aside the most frequent value,
+  more than half of the remaining points are duplicates. Previously it fired when more
+  than half of the non-zero values were duplicates.
+
 ### Changed
-- A dimension with fewer than two non-zero values now has invariant measure `NaN`
-  instead of `1.0`, and every estimator returns `NaN` for a quantity that involves it.
-  With no spacing to measure there is no scale, and `1.0` left the column in its own
-  units: `entropy(w)` and `entropy(1000 * w)` differed by exactly `log(1000)`. In the
-  `MI()`/`CMI()` matrices only that dimension's row and column become `NaN` (all of
-  `CMI()` if it is the conditioning variable); the other entries are unchanged, with or
-  without `n_jobs`. Input containing `NaN` now returns `NaN` instead of `cKDTree`'s
+- A dimension with fewer than two values that occur once now has invariant measure
+  `NaN` instead of `1.0`, and every estimator returns `NaN` for a quantity that
+  involves it. With no spacing to measure there is no scale, and `1.0` left the column
+  in its own units: `entropy(w)` and `entropy(1000 * w)` differed by exactly
+  `log(1000)`. In the `MI()`/`CMI()` matrices only that dimension's row and column
+  become `NaN` (all of `CMI()` if it is the conditioning variable); the other entries
+  are unchanged, with or without `n_jobs`. Input containing `NaN` now returns `NaN` instead of `cKDTree`'s
   "data must be finite" error.
 
 ## [2.2.2] - 2026-08-28

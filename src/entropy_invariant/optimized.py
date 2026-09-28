@@ -125,7 +125,7 @@ def MI(
 
     # Each element is shape (1, n) for KDTree
     all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
-    # A dimension with fewer than two non-zero values has no scale (NaN measure):
+    # A dimension with fewer than two values that occur once has no scale (NaN measure):
     # its row and column of the result are NaN, and no tree is built for it.
     has_scale = ~np.isnan(all_ri)
 
@@ -289,7 +289,7 @@ def CMI(
 
     all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
     b_rz = z.reshape(1, n) / rz  # shape (1, n)
-    # A variable with fewer than two non-zero values has no scale (NaN measure).
+    # A variable with fewer than two values that occur once has no scale (NaN measure).
     # If that is Z, every entry is NaN; if it is a dimension of X, its row and
     # column are NaN. No tree is built for it either way.
     if method in ("inv", "inv_ksg") and np.isnan(rz):
