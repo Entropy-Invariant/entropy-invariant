@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   instead of `cKDTree`'s "data must be finite" error.
 
 ### Documented
+- Only exact repeats are set aside from the invariant measure. Readings at a noise
+  floor (`1e-12` rather than `0`) are distinct values, and when they make up most of a
+  column the scale collapses to their spacing: the entropy grows without bound as the
+  noise shrinks, and mutual information with the rest of the data is underestimated.
+  Snap readings below the detection limit to one exact value first (README, "Repeated
+  values and noise floors").
 - The factor `n` in `r_X = n * median(NN distance)` is what makes the invariant entropy
   converge; the median alone shrinks like `1/n`. A test pins the Uniform value of the
   published Table 2.
