@@ -8,7 +8,8 @@ limiting density of discrete points problem.
 The main innovation is the invariant measure m(x) based on the median value
 of nearest-neighbor distances, which ensures:
 - Invariance under change of variables (scaling and translation)
-- Always positive entropy values
+- Positive entropy for common distribution families (negative only in
+  extreme cases, see the README)
 
 Example usage:
     >>> import numpy as np

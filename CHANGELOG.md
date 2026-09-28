@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Documented
+- The invariant entropy is not always positive, as the documentation claimed. It is
+  positive for common distribution families and goes negative only in extreme cases: a
+  minority of the data packed into a region roughly a thousand times narrower than the
+  rest, or more (70% of values on [0, 1] and 30% inside [0, 1e-6] give about -2.1).
+
 ## [2.3.0] - 2026-09-28
 
 ### Fixed
