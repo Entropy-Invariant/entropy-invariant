@@ -18,6 +18,10 @@ def compute_invariant_measure(data: NDArray[np.float64]) -> float:
     This is the core innovation solving Jaynes' limiting density problem.
     Formula: r_X = median(nearest_neighbor_distances) * num_points
 
+    The factor num_points is what makes r_X converge as the sample grows: the
+    median nearest-neighbor distance itself shrinks like 1/num_points, so on
+    its own it would add log(num_points) to every entropy estimate.
+
     A value that occurs more than once has a nearest-neighbor distance of 0,
     which says nothing about the spacing of the data. In sparse data this is
     mostly the value 0, but the same holds for any repeated value (a

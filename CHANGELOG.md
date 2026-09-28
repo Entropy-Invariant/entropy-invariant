@@ -29,8 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   in its own units: `entropy(w)` and `entropy(1000 * w)` differed by exactly
   `log(1000)`. In the `MI()`/`CMI()` matrices only that dimension's row and column
   become `NaN` (all of `CMI()` if it is the conditioning variable); the other entries
-  are unchanged, with or without `n_jobs`. Input containing `NaN` now returns `NaN` instead of `cKDTree`'s
-  "data must be finite" error.
+  are unchanged, with or without `n_jobs`. Input containing `NaN` now returns `NaN`
+  instead of `cKDTree`'s "data must be finite" error.
+
+### Documented
+- The factor `n` in `r_X = n * median(NN distance)` is what makes the invariant entropy
+  converge; the median alone shrinks like `1/n`. A test pins the Uniform value of the
+  published Table 2.
 
 ## [2.2.2] - 2026-08-28
 

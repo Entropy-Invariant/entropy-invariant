@@ -152,3 +152,16 @@ class TestRepeatedValues:
     def test_too_few_single_values_is_nan_wherever_the_atom_sits(self):
         assert np.isnan(compute_invariant_measure(np.array([0.0, 0, 0, 0, 7])))
         assert np.isnan(compute_invariant_measure(np.array([5.0, 5, 5, 5, 7])))
+
+
+class TestFactorN:
+    """
+    r_X = n * median(NN distance). The median alone shrinks like 1/n and would
+    add log(n) to every entropy. For U(0,1), n * median(NN distance) tends to
+    ln(2)/2, so the invariant entropy tends to -log(ln(2)/2) = 1.0597, the
+    Uniform row of Table 2 (1.060).
+    """
+
+    def test_uniform_matches_published_table_2(self):
+        x = np.random.default_rng(3).random(50_000)
+        assert abs(entropy(x, k=3) - (-np.log(np.log(2) / 2))) < 0.03
