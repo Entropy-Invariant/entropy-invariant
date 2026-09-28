@@ -90,6 +90,9 @@ def _entropy_nats_from_normalized(col: NDArray[np.float64], k: int, n: int) -> f
     points from the log-distance average -- the same behavior as
     method="inv" -- instead of hard-failing.
     """
+    # NaN measure: fewer than two values occur once, so no scale and no tree to build
+    if np.isnan(col).any():
+        return float("nan")
     knn_result = compute_knn_distances(col, k)
     log_dists = extract_nonzero_log_distances(knn_result.kth_distances)
     return compute_knn_entropy_nats(log_dists, 1, k, n)
@@ -154,6 +157,8 @@ def _mi_ksg_from_normalized(
     x: NDArray[np.float64], y: NDArray[np.float64], k: int
 ) -> float:
     """KSG MI in nats, given x, y already invariant-normalized and column-shaped (n, 1)."""
+    if np.isnan(x).any() or np.isnan(y).any():
+        return float("nan")
     return _mi_ksg_pair(x, y, cKDTree(x), cKDTree(y), k)
 
 
@@ -201,6 +206,8 @@ def _cmi_fp_from_normalized(
     k: int,
 ) -> float:
     """Frenzel-Pompe CMI in nats, given x, y, z already invariant-normalized, shape (n, 1)."""
+    if np.isnan(x).any() or np.isnan(y).any() or np.isnan(z).any():
+        return float("nan")
     xz_tree = cKDTree(np.column_stack([x, z]))
     yz_tree = cKDTree(np.column_stack([y, z]))
     z_tree = cKDTree(z)

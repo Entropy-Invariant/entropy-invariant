@@ -58,6 +58,33 @@ See `examples/tutorial_getting_started.ipynb` for a hands-on walkthrough, includ
 normalization (a small number of extreme outliers). `examples/` also has deep-dive
 comparison notebooks against `ennemi` and `sklearn`.
 
+### Repeated values and noise floors
+
+The invariant measure is the median nearest-neighbor distance, and a value that occurs
+more than once has a distance of 0 to its copy. So every exactly repeated value -- the
+zeros of sparse data, a saturation level, a fill value -- is set aside when computing the
+scale, wherever it sits. It still counts in the entropy and mutual information
+themselves: only the unit of measure ignores it.
+
+Only exact repeats are recognized. If readings below the detection limit come back as
+tiny noise (`1e-12` rather than `0`) and make up most of a column, the scale collapses
+to the spacing of that noise, the entropy grows without bound as the noise shrinks, and
+mutual information with the rest of the data is underestimated. Snap those readings to
+one exact value first:
+
+```python
+# 80% of readings are below the detection limit, recorded as noise around 0
+x = np.concatenate([np.random.rand(100) * 10 + 1, 1e-12 * np.random.randn(400)])
+
+detection_limit = 1e-6  # in the units of x: rescale it with the data
+x_snapped = np.where(np.abs(x) < detection_limit, 0.0, x)
+
+entropy(x_snapped)
+```
+
+A dimension left with fewer than two values that occur once has no scale, and every
+quantity involving it is `NaN`.
+
 ## N-source Partial Information Decomposition
 
 `redundancy` / `unique` / `synergy` decompose `I({X,Y}; Z)` into four terms and are fixed

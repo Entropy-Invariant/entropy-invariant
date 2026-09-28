@@ -18,41 +18,75 @@ def compute_invariant_measure(data: NDArray[np.float64]) -> float:
     This is the core innovation solving Jaynes' limiting density problem.
     Formula: r_X = median(nearest_neighbor_distances) * num_points
 
+    The factor num_points is what makes r_X converge as the sample grows: the
+    median nearest-neighbor distance itself shrinks like 1/num_points, so on
+    its own it would add log(num_points) to every entropy estimate.
+
+    A value that occurs more than once has a nearest-neighbor distance of 0,
+    which says nothing about the spacing of the data. In sparse data this is
+    mostly the value 0, but the same holds for any repeated value (a
+    saturation level, a fill value), so all of them are set aside and
+    num_points counts the values that occur once. Which points are set aside
+    depends only on repetition, never on where a value sits, so
+    r(a*x + b) = |a| * r(x) for any data.
+
+    Setting duplicates aside only makes sense when they are concentrated, as
+    in sparse data. When they are spread over many values, as in data rounded
+    to a resolution close to its spacing, the values that occur once no
+    longer represent the data, so this raises instead: after setting aside the
+    most frequent value, the remaining duplicates must not outnumber the
+    values that occur once.
+
+    Only exact repeats count. Values that are very close but not identical,
+    such as readings at an instrument's noise floor (1e-12 instead of 0), are
+    ordinary distinct values: when they make up most of the data, the median
+    lands inside that tight cluster and the scale collapses to its spacing.
+    Snap such readings to one exact value (for example, everything below the
+    detection limit to 0) before calling.
+
     Args:
         data: 1D data array
 
     Returns:
-        The invariant measure r_X
+        The invariant measure r_X, or NaN when fewer than two values occur
+        once -- there is no spacing to measure, so there is no scale. Every
+        estimator returns NaN for a quantity that involves such a dimension.
 
     Raises:
-        ValueError: If the median nearest-neighbor distance is zero, i.e. the
-            invariant measure is degenerate. This happens when too many of the
-            non-zero values are exact duplicates (e.g. quantized/clipped
-            sensor readings, or a mostly-constant column). Normalizing by a
-            zero measure would silently produce inf/nan downstream.
+        ValueError: If the invariant measure is degenerate: duplicates spread
+            over many values (e.g. quantized sensor readings, discrete data),
+            so that even after setting aside the most frequent value they
+            outnumber the values that occur once.
     """
-    # Filter out zero values (sparse data handling)
-    non_zero_data = data[data != 0]
+    sorted_data = np.sort(np.asarray(data, dtype=np.float64))
+    n = len(sorted_data)
 
-    if len(non_zero_data) < 2:
-        return 1.0  # Fallback for insufficient data
+    # Runs of equal values in sorted order (== rather than bitwise equality, so
+    # -0.0 and 0.0 count as the same value, just as their distance of 0 does).
+    run_starts = np.flatnonzero(
+        np.concatenate(([True], sorted_data[1:] != sorted_data[:-1]))
+    )
+    run_lengths = np.diff(np.append(run_starts, n))
+    single_values = sorted_data[run_starts[run_lengths == 1]]
+    duplicated_runs = run_lengths[run_lengths > 1]
+    num_duplicated = int(duplicated_runs.sum())
+    largest_group = int(duplicated_runs.max(initial=0))
 
-    sorted_data = np.sort(non_zero_data)
-    nn_distances = nn1(sorted_data)
-    median_distance = np.median(nn_distances)
-
-    if median_distance == 0:
-        n_unique = len(np.unique(non_zero_data))
+    if num_duplicated - largest_group > len(single_values):
         raise ValueError(
-            f"Invariant measure is degenerate (median nearest-neighbor "
-            f"distance is 0): {len(non_zero_data)} non-zero values but only "
-            f"{n_unique} unique among them, so at least half of the sorted "
-            f"non-zero values are exact duplicates. Cannot normalize this "
-            f"dimension -- consider deduplicating, adding jitter, or "
-            f"excluding it from the analysis."
+            f"Invariant measure is degenerate: {num_duplicated} of {n} values "
+            f"are exact duplicates, and even setting aside the most frequent "
+            f"value ({largest_group} copies), the remaining duplicates "
+            f"outnumber the {len(single_values)} values that occur once. "
+            f"Cannot normalize this dimension -- consider deduplicating, "
+            f"adding jitter, or excluding it from the analysis."
         )
+    if len(single_values) < 2:
+        return float("nan")
 
-    num_points = len(non_zero_data)
+    nn_distances = nn1(single_values)
+    median_distance = np.median(nn_distances)
+    num_points = len(single_values)
     return float(median_distance * num_points)
 
 

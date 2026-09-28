@@ -156,8 +156,9 @@ class TestDegenerateInvariantMeasure:
 
     @pytest.fixture
     def duplicate_heavy_column(self):
-        """A column where >=half the non-zero values are exact duplicates,
-        so the median nearest-neighbor distance is exactly 0."""
+        """Duplicates spread over three values: even setting aside the most
+        frequent one, the rest are all duplicates, so there is no spacing to
+        measure."""
         np.random.seed(0)
         return np.random.choice([1.0, 2.0, 3.0], size=200)
 

@@ -125,16 +125,21 @@ def MI(
 
     # Each element is shape (1, n) for KDTree
     all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
+    # A dimension with fewer than two values that occur once has no scale (NaN measure):
+    # its row and column of the result are NaN, and no tree is built for it.
+    has_scale = ~np.isnan(all_ri)
 
     if method == "inv_ksg":
         log_base = math.log(base)
         all_mi_ij = np.zeros((m, m))
-        pairs = [(i, j) for i in range(m) for j in range(i, m)]
+        all_mi_ij[~has_scale, :] = np.nan
+        all_mi_ij[:, ~has_scale] = np.nan
+        pairs = [(i, j) for i in range(m) for j in range(i, m) if has_scale[i] and has_scale[j]]
 
         # Each dimension's marginal (1D) tree only depends on that dimension,
         # so build it once here rather than re-building it for every pair it
         # appears in (each dimension appears in m pairs).
-        marginal_trees = [cKDTree(all_a_ri[i].T) for i in range(m)]
+        marginal_trees = [cKDTree(all_a_ri[i].T) if has_scale[i] else None for i in range(m)]
 
         resolved_n_jobs = _resolve_n_jobs(n_jobs)
         if resolved_n_jobs == 1:
@@ -175,6 +180,9 @@ def MI(
     # Compute marginal entropy for each dimension (1D)
     all_ent_i = np.zeros(m)
     for i in range(m):
+        if not has_scale[i]:
+            all_ent_i[i] = np.nan
+            continue
         data_i = all_a_ri[i].T  # shape (n, 1) for KDTree
         kdtree = cKDTree(data_i)
         distances, _ = kdtree.query(data_i, k=k_1)
@@ -191,6 +199,9 @@ def MI(
     all_ent_ij = np.zeros((m, m))
     for i in range(m):
         for j in range(i, m):  # Only compute upper triangle
+            if not (has_scale[i] and has_scale[j]):
+                all_ent_ij[i, j] = all_ent_ij[j, i] = np.nan
+                continue
             data_ij = all_ij[i][j].T  # shape (n, 2) for KDTree
             kdtree = cKDTree(data_ij)
             distances, _ = kdtree.query(data_ij, k=k_1)
@@ -278,18 +289,29 @@ def CMI(
 
     all_a_ri = [a[:, i:i+1].T / all_ri[i] for i in range(m)]  # list of (1, n) arrays
     b_rz = z.reshape(1, n) / rz  # shape (1, n)
+    # A variable with fewer than two values that occur once has no scale (NaN measure).
+    # If that is Z, every entry is NaN; if it is a dimension of X, its row and
+    # column are NaN. No tree is built for it either way.
+    if method in ("inv", "inv_ksg") and np.isnan(rz):
+        return np.full((m, m), np.nan)
+    has_scale = ~np.isnan(all_ri)
 
     if method == "inv_ksg":
         log_base = math.log(base)
         z_col = b_rz.T  # shape (n, 1)
         all_cmi_ijz = np.zeros((m, m))
-        pairs = [(i, j) for i in range(m) for j in range(i, m)]
+        all_cmi_ijz[~has_scale, :] = np.nan
+        all_cmi_ijz[:, ~has_scale] = np.nan
+        pairs = [(i, j) for i in range(m) for j in range(i, m) if has_scale[i] and has_scale[j]]
 
         # Each dimension's (Xi, Z) tree only depends on that dimension (and
         # Z, which never changes), so build it once here rather than
         # re-building it -- and the Z-only tree -- for every pair.
         z_tree = cKDTree(z_col)
-        iz_trees = [cKDTree(np.column_stack([all_a_ri[i].T, z_col])) for i in range(m)]
+        iz_trees = [
+            cKDTree(np.column_stack([all_a_ri[i].T, z_col])) if has_scale[i] else None
+            for i in range(m)
+        ]
 
         resolved_n_jobs = _resolve_n_jobs(n_jobs)
         if resolved_n_jobs == 1:
@@ -336,6 +358,9 @@ def CMI(
     # Compute marginal entropy for each dimension of X (1D)
     all_ent_i = np.zeros(m)
     for i in range(m):
+        if not has_scale[i]:
+            all_ent_i[i] = np.nan
+            continue
         data_i = all_a_ri[i].T  # shape (n, 1)
         kdtree = cKDTree(data_i)
         distances, _ = kdtree.query(data_i, k=k_1)
@@ -349,6 +374,9 @@ def CMI(
 
     all_ent_iz = np.zeros(m)
     for i in range(m):
+        if not has_scale[i]:
+            all_ent_iz[i] = np.nan
+            continue
         data_iz = all_j_iz[i].T  # shape (n, 2)
         kdtree = cKDTree(data_iz)
         distances, _ = kdtree.query(data_iz, k=k_1)
@@ -363,6 +391,9 @@ def CMI(
     all_ent_ijz = np.zeros((m, m))
     for i in range(m):
         for j in range(i, m):  # Only compute upper triangle
+            if not (has_scale[i] and has_scale[j]):
+                all_ent_ijz[i, j] = all_ent_ijz[j, i] = np.nan
+                continue
             data_ijz = all_j_ijz[i][j].T  # shape (n, 3)
             kdtree = cKDTree(data_ijz)
             distances, _ = kdtree.query(data_ijz, k=k_1)
